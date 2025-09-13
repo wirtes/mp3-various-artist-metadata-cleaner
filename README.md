@@ -7,6 +7,8 @@ A Python script that recursively scans directories for audio files and reports d
 - Recursively scans directory structures for audio files
 - Supports multiple audio formats: MP3, FLAC, M4A, MP4, OGG, WAV, WMA, AAC
 - Checks Album Artist metadata across different tag formats (ID3, Vorbis, MP4)
+- Can update Album Artist metadata with missing values or force update all files
+- Can set RELEASETYPE metadata for better music organization
 - Reports each directory only once
 - Handles missing or malformed metadata gracefully
 
@@ -61,11 +63,16 @@ python audio_scanner.py -f /path/to/music/directory
 # With custom value
 python audio_scanner.py --force "Soundtrack" /path/to/music/directory
 python audio_scanner.py -f "My Custom Artist" /path/to/music/directory
+
+# With RELEASETYPE metadata
+python audio_scanner.py --force --release-type "compilation" /path/to/music/directory
+python audio_scanner.py -f "Soundtrack" --release-type "soundtrack" /path/to/music/directory
 ```
 
 In force mode, the script will:
 - Update ALL audio files to set Album Artist to specified value (default: "Various Artists")
 - Overwrites existing Album Artist values regardless of current content
+- Optionally set RELEASETYPE metadata with `--release-type` flag
 - Output the names of directories that were updated
 - Accepts custom Album Artist value as parameter
 
@@ -100,6 +107,14 @@ Force updating ALL files to set Album Artist to 'Soundtrack'...
 Force Updated: Movie Themes
 Force Updated: Game Music
 Force Updated: TV Shows
+```
+
+### Force Mode with RELEASETYPE
+```
+Force updating ALL files to set Album Artist to 'Various Artists' and RELEASETYPE to 'compilation'...
+Force Updated: Mixed Collection
+Force Updated: Best Of Albums
+Force Updated: Greatest Hits
 ```
 
 ## How It Works

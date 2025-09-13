@@ -11,7 +11,7 @@ import sys
 import argparse
 from pathlib import Path
 from mutagen import File
-from mutagen.id3 import ID3NoHeaderError, TPE2
+from mutagen.id3 import ID3NoHeaderError, TPE2, TXXX
 from mutagen.flac import FLAC
 from mutagen.mp4 import MP4
 
@@ -86,13 +86,48 @@ def set_album_artist(file_path, album_artist_value):
         return False
 
 
+def set_release_type(file_path, release_type_value):
+    """Set RELEASETYPE metadata for an audio file."""
+    try:
+        audio_file = File(file_path)
+        if audio_file is None:
+            return False
+        
+        # Handle different file formats
+        if file_path.suffix.lower() == '.mp3':
+            # ID3 tags for MP3 - use TXXX for custom fields
+            if not hasattr(audio_file, 'tags') or audio_file.tags is None:
+                audio_file.add_tags()
+            audio_file.tags['TXXX:RELEASETYPE'] = TXXX(encoding=3, desc='RELEASETYPE', text=[release_type_value])
+            
+        elif file_path.suffix.lower() in ['.flac', '.ogg']:
+            # Vorbis comments for FLAC/OGG
+            audio_file['RELEASETYPE'] = release_type_value
+            
+        elif file_path.suffix.lower() in ['.m4a', '.mp4']:
+            # MP4 tags - use freeform atom
+            audio_file['----:com.apple.iTunes:RELEASETYPE'] = [release_type_value.encode('utf-8')]
+            
+        else:
+            # Generic approach for other formats
+            if hasattr(audio_file, '__setitem__'):
+                audio_file['RELEASETYPE'] = release_type_value
+        
+        audio_file.save()
+        return True
+        
+    except Exception as e:
+        print(f"Error updating RELEASETYPE in {file_path}: {e}", file=sys.stderr)
+        return False
+
+
 def is_audio_file(file_path):
     """Check if file is an audio file based on extension."""
     audio_extensions = {'.mp3', '.flac', '.m4a', '.mp4', '.ogg', '.wav', '.wma', '.aac'}
     return file_path.suffix.lower() in audio_extensions
 
 
-def scan_directory(root_path, update_mode=False, force_mode=False, force_value="Various Artists"):
+def scan_directory(root_path, update_mode=False, force_mode=False, force_value="Various Artists", release_type=None):
     """Scan directory structure for audio files and check metadata."""
     root_path = Path(root_path)
     processed_dirs = set()
@@ -113,7 +148,13 @@ def scan_directory(root_path, update_mode=False, force_mode=False, force_value="
                     # Force mode: update ALL files regardless of current Album Artist value
                     updated_any = False
                     for audio_file in dir_files:
-                        if set_album_artist(audio_file, force_value):
+                        success = set_album_artist(audio_file, force_value)
+                        
+                        # Also set RELEASETYPE if specified
+                        if release_type and set_release_type(audio_file, release_type):
+                            success = True
+                        
+                        if success:
                             updated_any = True
                     
                     if updated_any:
@@ -165,10 +206,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python audio_scanner.py /path/to/music                    # Scan and report
-  python audio_scanner.py --update /path/to/music           # Update missing Album Artist to "Various Artists"
-  python audio_scanner.py --force /path/to/music            # Force all Album Artist to "Various Artists"
-  python audio_scanner.py --force "Soundtrack" /path/music  # Force all Album Artist to "Soundtrack"
+  python audio_scanner.py /path/to/music                              # Scan and report
+  python audio_scanner.py --update /path/to/music                     # Update missing Album Artist to "Various Artists"
+  python audio_scanner.py --force /path/to/music                      # Force all Album Artist to "Various Artists"
+  python audio_scanner.py --force "Soundtrack" /path/music            # Force all Album Artist to "Soundtrack"
+  python audio_scanner.py --force --release-type "compilation" /path  # Force Album Artist + set RELEASETYPE
         """
     )
     
@@ -181,7 +223,16 @@ Examples:
     update_group.add_argument('--force', '-f', metavar='VALUE', nargs='?', const='Various Artists',
                              help='Force update ALL files to set Album Artist (default: "Various Artists")')
     
+    # RELEASETYPE flag (only works with --force)
+    parser.add_argument('--release-type', '-r', metavar='TYPE',
+                       help='Set RELEASETYPE metadata (only works with --force mode)')
+    
     args = parser.parse_args()
+    
+    # Validate arguments
+    if args.release_type and not args.force:
+        print("Error: --release-type can only be used with --force mode.")
+        sys.exit(1)
     
     if not os.path.exists(args.directory):
         print(f"Error: Directory '{args.directory}' does not exist.")
@@ -195,11 +246,15 @@ Examples:
         force_value = "Various Artists"
         if args.force:
             force_value = args.force
-            print(f"Force updating ALL files to set Album Artist to '{force_value}'...")
+            message = f"Force updating ALL files to set Album Artist to '{force_value}'"
+            if args.release_type:
+                message += f" and RELEASETYPE to '{args.release_type}'"
+            print(f"{message}...")
         elif args.update:
             print("Updating files with missing Album Artist metadata...")
         
-        scan_directory(args.directory, update_mode=args.update, force_mode=bool(args.force), force_value=force_value)
+        scan_directory(args.directory, update_mode=args.update, force_mode=bool(args.force), 
+                      force_value=force_value, release_type=args.release_type)
     except KeyboardInterrupt:
         print("\nScan interrupted by user.")
         sys.exit(0)
