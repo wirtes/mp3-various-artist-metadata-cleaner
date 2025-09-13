@@ -127,7 +127,7 @@ def is_audio_file(file_path):
     return file_path.suffix.lower() in audio_extensions
 
 
-def scan_directory(root_path, update_mode=False, force_mode=False, force_value="Various Artists", release_type=None):
+def scan_directory(root_path, update_mode=False, force_mode=False, force_value="Various Artists", release_type=None, release_type_only=False):
     """Scan directory structure for audio files and check metadata."""
     root_path = Path(root_path)
     processed_dirs = set()
@@ -140,11 +140,22 @@ def scan_directory(root_path, update_mode=False, force_mode=False, force_value="
         parent_dir = file_path.parent
         
         # In update or force mode, process files in directories
-        if update_mode or force_mode:
+        if update_mode or force_mode or release_type_only:
             if parent_dir not in processed_dirs:
                 dir_files = [f for f in parent_dir.iterdir() if f.is_file() and is_audio_file(f)]
                 
-                if force_mode:
+                if release_type_only:
+                    # Release type only mode: only set RELEASETYPE, don't touch Album Artist
+                    updated_any = False
+                    for audio_file in dir_files:
+                        if set_release_type(audio_file, release_type):
+                            updated_any = True
+                    
+                    if updated_any:
+                        print(f"Release Type Updated: {parent_dir.name}")
+                        updated_dirs.add(parent_dir)
+                        
+                elif force_mode:
                     # Force mode: update ALL files regardless of current Album Artist value
                     updated_any = False
                     for audio_file in dir_files:
@@ -211,6 +222,7 @@ Examples:
   python audio_scanner.py --force /path/to/music                      # Force all Album Artist to "Various Artists"
   python audio_scanner.py --force "Soundtrack" /path/music            # Force all Album Artist to "Soundtrack"
   python audio_scanner.py --force --release-type "compilation" /path  # Force Album Artist + set RELEASETYPE
+  python audio_scanner.py --release-type "compilation" /path          # Only set RELEASETYPE (no Album Artist change)
         """
     )
     
@@ -223,16 +235,11 @@ Examples:
     update_group.add_argument('--force', '-f', metavar='VALUE', nargs='?', const='Various Artists',
                              help='Force update ALL files to set Album Artist (default: "Various Artists")')
     
-    # RELEASETYPE flag (only works with --force)
+    # RELEASETYPE flag (can work standalone or with --force)
     parser.add_argument('--release-type', '-r', metavar='TYPE',
-                       help='Set RELEASETYPE metadata (only works with --force mode)')
+                       help='Set RELEASETYPE metadata (can be used alone or with --force)')
     
     args = parser.parse_args()
-    
-    # Validate arguments
-    if args.release_type and not args.force:
-        print("Error: --release-type can only be used with --force mode.")
-        sys.exit(1)
     
     if not os.path.exists(args.directory):
         print(f"Error: Directory '{args.directory}' does not exist.")
@@ -244,17 +251,23 @@ Examples:
     
     try:
         force_value = "Various Artists"
+        release_type_only = False
+        
         if args.force:
             force_value = args.force
             message = f"Force updating ALL files to set Album Artist to '{force_value}'"
             if args.release_type:
                 message += f" and RELEASETYPE to '{args.release_type}'"
             print(f"{message}...")
+        elif args.release_type:
+            # Release type only mode (no Album Artist changes)
+            release_type_only = True
+            print(f"Setting RELEASETYPE to '{args.release_type}' on all files...")
         elif args.update:
             print("Updating files with missing Album Artist metadata...")
         
         scan_directory(args.directory, update_mode=args.update, force_mode=bool(args.force), 
-                      force_value=force_value, release_type=args.release_type)
+                      force_value=force_value, release_type=args.release_type, release_type_only=release_type_only)
     except KeyboardInterrupt:
         print("\nScan interrupted by user.")
         sys.exit(0)

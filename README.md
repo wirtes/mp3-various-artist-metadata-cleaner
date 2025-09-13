@@ -64,7 +64,7 @@ python audio_scanner.py -f /path/to/music/directory
 python audio_scanner.py --force "Soundtrack" /path/to/music/directory
 python audio_scanner.py -f "My Custom Artist" /path/to/music/directory
 
-# With RELEASETYPE metadata
+# With RELEASETYPE metadata (also forces Album Artist)
 python audio_scanner.py --force --release-type "compilation" /path/to/music/directory
 python audio_scanner.py -f "Soundtrack" --release-type "soundtrack" /path/to/music/directory
 ```
@@ -75,6 +75,18 @@ In force mode, the script will:
 - Optionally set RELEASETYPE metadata with `--release-type` flag
 - Output the names of directories that were updated
 - Accepts custom Album Artist value as parameter
+
+### Release Type Only Mode
+```bash
+# Only set RELEASETYPE, don't change Album Artist
+python audio_scanner.py --release-type "compilation" /path/to/music/directory
+python audio_scanner.py -r "soundtrack" /path/to/music/directory
+```
+
+In release type only mode, the script will:
+- Set RELEASETYPE metadata on ALL audio files
+- Does NOT modify Album Artist values
+- Useful for categorizing existing collections without changing artist information
 
 ## Example Output
 
@@ -115,6 +127,14 @@ Force updating ALL files to set Album Artist to 'Various Artists' and RELEASETYP
 Force Updated: Mixed Collection
 Force Updated: Best Of Albums
 Force Updated: Greatest Hits
+```
+
+### Release Type Only Mode
+```
+Setting RELEASETYPE to 'compilation' on all files...
+Release Type Updated: Mixed Collection
+Release Type Updated: Best Of Albums
+Release Type Updated: Greatest Hits
 ```
 
 ## How It Works
