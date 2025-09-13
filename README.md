@@ -79,7 +79,7 @@ In force mode, the script will:
 ### Release Type Only Mode
 ```bash
 # Only set RELEASETYPE, don't change Album Artist
-python audio_scanner.py --release-type "compilation" /path/to/music/directory
+python audio_scanner.py --release-type "album;compilation" /path/to/music/directory
 python audio_scanner.py -r "soundtrack" /path/to/music/directory
 ```
 
@@ -87,6 +87,10 @@ In release type only mode, the script will:
 - Set RELEASETYPE metadata on ALL audio files
 - Does NOT modify Album Artist values
 - Useful for categorizing existing collections without changing artist information
+
+Plex supported release-type values:
+- `album;live` for live albums
+- `album;compliation` for compilation albums
 
 ## Example Output
 
