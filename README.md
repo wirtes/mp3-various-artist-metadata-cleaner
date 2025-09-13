@@ -4,6 +4,8 @@ A Python script that recursively scans directories for audio files and reports d
 
 This is specifically to fix all the wierd issues that Plex has with music metadata.
 
+Added features update Album Artist metadata as well as indicate whether an album is live or a compilation in a way that Plex will respect.
+
 ## Features
 
 - Recursively scans directory structures for audio files
