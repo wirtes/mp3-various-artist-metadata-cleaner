@@ -3,13 +3,17 @@
 Audio metadata scanner that checks for Album Artist values.
 Recursively scans directories for audio files and reports directories
 where Album Artist is not set to "Various Artists".
+Can optionally update missing Album Artist values to "Various Artists".
 """
 
 import os
 import sys
+import argparse
 from pathlib import Path
 from mutagen import File
-from mutagen.id3 import ID3NoHeaderError
+from mutagen.id3 import ID3NoHeaderError, TPE2
+from mutagen.flac import FLAC
+from mutagen.mp4 import MP4
 
 
 def get_album_artist(file_path):
@@ -47,16 +51,52 @@ def get_album_artist(file_path):
         return None
 
 
+def set_album_artist(file_path, album_artist_value):
+    """Set Album Artist metadata for an audio file."""
+    try:
+        audio_file = File(file_path)
+        if audio_file is None:
+            return False
+        
+        # Handle different file formats
+        if file_path.suffix.lower() == '.mp3':
+            # ID3 tags for MP3
+            if not hasattr(audio_file, 'tags') or audio_file.tags is None:
+                audio_file.add_tags()
+            audio_file.tags['TPE2'] = TPE2(encoding=3, text=[album_artist_value])
+            
+        elif file_path.suffix.lower() in ['.flac', '.ogg']:
+            # Vorbis comments for FLAC/OGG
+            audio_file['ALBUMARTIST'] = album_artist_value
+            
+        elif file_path.suffix.lower() in ['.m4a', '.mp4']:
+            # MP4 tags
+            audio_file['aART'] = [album_artist_value]
+            
+        else:
+            # Generic approach for other formats
+            if hasattr(audio_file, '__setitem__'):
+                audio_file['ALBUMARTIST'] = album_artist_value
+        
+        audio_file.save()
+        return True
+        
+    except Exception as e:
+        print(f"Error updating {file_path}: {e}", file=sys.stderr)
+        return False
+
+
 def is_audio_file(file_path):
     """Check if file is an audio file based on extension."""
     audio_extensions = {'.mp3', '.flac', '.m4a', '.mp4', '.ogg', '.wav', '.wma', '.aac'}
     return file_path.suffix.lower() in audio_extensions
 
 
-def scan_directory(root_path):
+def scan_directory(root_path, update_mode=False, force_mode=False, force_value="Various Artists"):
     """Scan directory structure for audio files and check metadata."""
     root_path = Path(root_path)
     processed_dirs = set()
+    updated_dirs = set()
     
     for file_path in root_path.rglob('*'):
         if not file_path.is_file() or not is_audio_file(file_path):
@@ -64,38 +104,102 @@ def scan_directory(root_path):
         
         parent_dir = file_path.parent
         
-        # Skip if we've already processed this directory
-        if parent_dir in processed_dirs:
-            continue
-        
-        album_artist = get_album_artist(file_path)
-        
-        # Only output if Album Artist is not "Various Artists" or is missing
-        if album_artist != "Various Artists":
-            dir_name = parent_dir.name
-            artist_value = album_artist if album_artist else "(not set)"
-            print(f"{dir_name} - {artist_value}")
-            processed_dirs.add(parent_dir)
+        # In update or force mode, process files in directories
+        if update_mode or force_mode:
+            if parent_dir not in processed_dirs:
+                dir_files = [f for f in parent_dir.iterdir() if f.is_file() and is_audio_file(f)]
+                
+                if force_mode:
+                    # Force mode: update ALL files regardless of current Album Artist value
+                    updated_any = False
+                    for audio_file in dir_files:
+                        if set_album_artist(audio_file, force_value):
+                            updated_any = True
+                    
+                    if updated_any:
+                        print(f"Force Updated: {parent_dir.name}")
+                        updated_dirs.add(parent_dir)
+                        
+                elif update_mode:
+                    # Update mode: only update files with missing Album Artist
+                    needs_update = False
+                    for audio_file in dir_files:
+                        album_artist = get_album_artist(audio_file)
+                        if album_artist is None or album_artist.strip() == "":
+                            needs_update = True
+                            break
+                    
+                    if needs_update:
+                        # Update all files in this directory that have missing Album Artist
+                        updated_any = False
+                        for audio_file in dir_files:
+                            album_artist = get_album_artist(audio_file)
+                            if album_artist is None or album_artist.strip() == "":
+                                if set_album_artist(audio_file, "Various Artists"):
+                                    updated_any = True
+                        
+                        if updated_any:
+                            print(f"Updated: {parent_dir.name}")
+                            updated_dirs.add(parent_dir)
+                
+                processed_dirs.add(parent_dir)
+        else:
+            # Original scan mode - report directories with non-"Various Artists" values
+            if parent_dir in processed_dirs:
+                continue
+            
+            album_artist = get_album_artist(file_path)
+            
+            # Only output if Album Artist is not "Various Artists" or is missing
+            if album_artist != "Various Artists":
+                dir_name = parent_dir.name
+                artist_value = album_artist if album_artist else "(not set)"
+                print(f"{dir_name} - {artist_value}")
+                processed_dirs.add(parent_dir)
 
 
 def main():
     """Main function to handle command line arguments and run scanner."""
-    if len(sys.argv) != 2:
-        print("Usage: python audio_scanner.py <directory_path>")
+    parser = argparse.ArgumentParser(
+        description="Scan audio files for Album Artist metadata",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python audio_scanner.py /path/to/music                    # Scan and report
+  python audio_scanner.py --update /path/to/music           # Update missing Album Artist to "Various Artists"
+  python audio_scanner.py --force /path/to/music            # Force all Album Artist to "Various Artists"
+  python audio_scanner.py --force "Soundtrack" /path/music  # Force all Album Artist to "Soundtrack"
+        """
+    )
+    
+    parser.add_argument('directory', help='Directory path to scan for audio files')
+    
+    # Create mutually exclusive group for update modes
+    update_group = parser.add_mutually_exclusive_group()
+    update_group.add_argument('--update', '-u', action='store_true', 
+                             help='Update files with missing Album Artist to "Various Artists"')
+    update_group.add_argument('--force', '-f', metavar='VALUE', nargs='?', const='Various Artists',
+                             help='Force update ALL files to set Album Artist (default: "Various Artists")')
+    
+    args = parser.parse_args()
+    
+    if not os.path.exists(args.directory):
+        print(f"Error: Directory '{args.directory}' does not exist.")
         sys.exit(1)
     
-    directory_path = sys.argv[1]
-    
-    if not os.path.exists(directory_path):
-        print(f"Error: Directory '{directory_path}' does not exist.")
-        sys.exit(1)
-    
-    if not os.path.isdir(directory_path):
-        print(f"Error: '{directory_path}' is not a directory.")
+    if not os.path.isdir(args.directory):
+        print(f"Error: '{args.directory}' is not a directory.")
         sys.exit(1)
     
     try:
-        scan_directory(directory_path)
+        force_value = "Various Artists"
+        if args.force:
+            force_value = args.force
+            print(f"Force updating ALL files to set Album Artist to '{force_value}'...")
+        elif args.update:
+            print("Updating files with missing Album Artist metadata...")
+        
+        scan_directory(args.directory, update_mode=args.update, force_mode=bool(args.force), force_value=force_value)
     except KeyboardInterrupt:
         print("\nScan interrupted by user.")
         sys.exit(0)

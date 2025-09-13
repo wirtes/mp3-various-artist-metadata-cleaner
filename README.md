@@ -25,6 +25,7 @@ A Python script that recursively scans directories for audio files and reports d
 
 ## Usage
 
+### Scan Mode (Default)
 ```bash
 python audio_scanner.py /path/to/music/directory
 ```
@@ -39,12 +40,66 @@ For directories where Album Artist is not set, it will show:
 DirectoryName - (not set)
 ```
 
+### Update Mode
+```bash
+python audio_scanner.py --update /path/to/music/directory
+# or
+python audio_scanner.py -u /path/to/music/directory
+```
+
+In update mode, the script will:
+- Find all audio files with missing or empty Album Artist metadata
+- Update them to "Various Artists"
+- Output the names of directories that were updated
+
+### Force Mode
+```bash
+python audio_scanner.py --force /path/to/music/directory
+# or
+python audio_scanner.py -f /path/to/music/directory
+
+# With custom value
+python audio_scanner.py --force "Soundtrack" /path/to/music/directory
+python audio_scanner.py -f "My Custom Artist" /path/to/music/directory
+```
+
+In force mode, the script will:
+- Update ALL audio files to set Album Artist to specified value (default: "Various Artists")
+- Overwrites existing Album Artist values regardless of current content
+- Output the names of directories that were updated
+- Accepts custom Album Artist value as parameter
+
 ## Example Output
 
+### Scan Mode
 ```
 Rock Collection - Led Zeppelin
 Jazz Masters - Miles Davis
 Compilation Album - (not set)
+```
+
+### Update Mode
+```
+Updating files with missing Album Artist metadata...
+Updated: Compilation Album
+Updated: Mixed Tracks
+Updated: Unknown Artist Collection
+```
+
+### Force Mode
+```
+Force updating ALL files to set Album Artist to 'Various Artists'...
+Force Updated: Rock Collection
+Force Updated: Jazz Masters
+Force Updated: Compilation Album
+```
+
+### Force Mode with Custom Value
+```
+Force updating ALL files to set Album Artist to 'Soundtrack'...
+Force Updated: Movie Themes
+Force Updated: Game Music
+Force Updated: TV Shows
 ```
 
 ## How It Works
