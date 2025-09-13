@@ -221,7 +221,7 @@ Examples:
   python audio_scanner.py --update /path/to/music                     # Update missing Album Artist to "Various Artists"
   python audio_scanner.py --force /path/to/music                      # Force all Album Artist to "Various Artists"
   python audio_scanner.py --force "Soundtrack" /path/music            # Force all Album Artist to "Soundtrack"
-  python audio_scanner.py --force --release-type "compilation" /path  # Force Album Artist + set RELEASETYPE
+  python audio_scanner.py --force --release-type "album;compilation" /path  # Force Album Artist + set RELEASETYPE
   python audio_scanner.py --release-type "compilation" /path          # Only set RELEASETYPE (no Album Artist change)
         """
     )
