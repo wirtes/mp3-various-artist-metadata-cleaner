@@ -2,6 +2,8 @@
 
 A Python script that recursively scans directories for audio files and reports directories where the "Album Artist" metadata is not set to "Various Artists".
 
+This is specifically to fix all the wierd issues that Plex has with music metadata.
+
 ## Features
 
 - Recursively scans directory structures for audio files
